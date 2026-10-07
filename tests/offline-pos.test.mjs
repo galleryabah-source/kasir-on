@@ -1,6 +1,9 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { SQLiteLocalStore } from "../src/offline/store.mjs";
 import { OfflinePOSEngine } from "../src/offline/engine.mjs";
 import { DeterministicTestServer, SyncEngine } from "../src/offline/sync.mjs";
@@ -27,6 +30,18 @@ test("sync retry preserves local transaction",async()=>{
   let calls=0; const server={accept:async()=>{calls++; if(calls===1) throw new Error("API_UNAVAILABLE"); return {status:"ACK"};}},sync=new SyncEngine(store,server);
   const first=await sync.drain(); assert.equal(first[0].status,"RETRY"); assert.equal(store.getOrder(orderId).status,"PAID");
   store.exec("UPDATE outbox SET next_attempt_at=NULL WHERE aggregate_id=?",[orderId]); const second=await sync.drain(); assert.equal(second[0].status,"ACKED"); assert.equal(store.outboxStatus(first[0].eventId).status,"ACKED"); store.close();
+});
+test("same order with different payload is an idempotency conflict",()=>{
+  const {store,engine,ids}=fixture(); engine.openShift({shiftId:ids.shiftId});
+  const orderId=randomUUID(), args=saleArgs(ids,orderId); engine.sell(args);
+  assert.throws(()=>engine.sell({...args,totalMinor:9000,paymentMinor:9000,items:[{...args.items[0],lineTotalMinor:9000}]}),/IDEMPOTENCY_CONFLICT/);
+  assert.equal(store.all("SELECT COUNT(*) AS n FROM order_header").at(0).n,1); store.close();
+});
+test("file-backed SQLite survives store reopen",()=>{
+  const dir=mkdtempSync(join(tmpdir(),"kasira-offline-")), file=join(dir,"pos.db"), ids={tenantId:randomUUID(),outletId:randomUUID(),deviceId:randomUUID(),actorId:randomUUID(),shiftId:randomUUID(),variantId:randomUUID()};
+  const first=new SQLiteLocalStore(file); first.createDevice(ids); const engine=new OfflinePOSEngine(first,ids.deviceId); engine.openShift({shiftId:ids.shiftId});
+  const orderId=randomUUID(); engine.sell(saleArgs(ids,orderId)); first.close();
+  const second=new SQLiteLocalStore(file); assert.equal(second.getOrder(orderId).status,"PAID"); assert.equal(second.pendingOutbox().length,1); second.close(); rmSync(dir,{recursive:true,force:true});
 });
 test("server idempotency makes duplicate delivery harmless",async()=>{
   const {store,engine,ids}=fixture(); engine.openShift({shiftId:ids.shiftId}); const orderId=randomUUID(); engine.sell(saleArgs(ids,orderId));
