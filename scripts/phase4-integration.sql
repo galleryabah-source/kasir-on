@@ -8,6 +8,12 @@ SET LOCAL app.tenant_id='00000000-0000-0000-0000-000000000001';
 \set warehouse '''00000000-0000-0000-0000-000000000001'''
 \set variant '''00000000-0000-0000-0000-000000000001'''
 
+-- Purchase order is the commercial source for the first receipt.
+INSERT INTO kasira.purchase_order(id,tenant_id,outlet_id,supplier_name,supplier_reference,total_minor,occurred_at)
+VALUES('00000000-0000-0000-0000-000000000301',:'tenant'::uuid,:'outlet'::uuid,'Supplier A','PO-1',10000,now());
+INSERT INTO kasira.purchase_order_line(tenant_id,purchase_order_id,product_variant_id,quantity,unit_cost_minor,line_total_minor)
+VALUES(:'tenant'::uuid,'00000000-0000-0000-0000-000000000301',:'variant'::uuid,10,1000,10000);
+
 -- Two receipts establish FIFO cost layers: 10 @ 1000 and 5 @ 1200.
 SELECT kasira.post_inventory_event(:'tenant'::uuid,:'warehouse'::uuid,:'variant'::uuid,
  '00000000-0000-0000-0000-000000000401','PURCHASE',10,1000,now(),NULL,NULL,
@@ -16,8 +22,8 @@ SELECT kasira.post_inventory_event(:'tenant'::uuid,:'warehouse'::uuid,:'variant'
  '00000000-0000-0000-0000-000000000402','PURCHASE',5,1200,now(),NULL,NULL,
  '00000000-0000-0000-0000-000000000452',NULL,'{"source":"GR-2"}');
 
-INSERT INTO kasira.goods_receipt(tenant_id,warehouse_id,receipt_number,occurred_at)
-VALUES(:'tenant'::uuid,:'warehouse'::uuid,'GR-1',now());
+INSERT INTO kasira.goods_receipt(tenant_id,purchase_order_id,warehouse_id,receipt_number,occurred_at)
+VALUES(:'tenant'::uuid,'00000000-0000-0000-0000-000000000301',:'warehouse'::uuid,'GR-1',now());
 INSERT INTO kasira.goods_receipt_line(tenant_id,goods_receipt_id,product_variant_id,quantity,unit_cost_minor,inventory_event_id)
 SELECT :'tenant'::uuid,id,:'variant'::uuid,10,1000,'00000000-0000-0000-0000-000000000401'::uuid
 FROM kasira.goods_receipt WHERE tenant_id=:'tenant'::uuid AND receipt_number='GR-1';
