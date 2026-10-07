@@ -76,25 +76,22 @@ WHERE tenant_id=:'tenant'::uuid AND stock_opname_id=(SELECT id FROM kasira.stock
 -- Server-side cash shift and atomic closing/variance workflow.
 INSERT INTO kasira.cash_shift(id,tenant_id,outlet_id,business_date,opening_cash_minor,opened_at)
 VALUES('00000000-0000-0000-0000-000000000501',:'tenant'::uuid,:'outlet'::uuid,CURRENT_DATE,100000,now());
-INSERT INTO kasira.cash_ledger(tenant_id,outlet_id,event_id,event_type,amount_minor,business_date,occurred_at,correlation_id)
-VALUES(:'tenant'::uuid,:'outlet'::uuid,'00000000-0000-0000-0000-000000000502','SALE',10000,CURRENT_DATE,now(),'00000000-0000-0000-0000-000000000503');
-SELECT kasira.close_cash_shift(:'tenant'::uuid,'00000000-0000-0000-0000-000000000501',CURRENT_DATE,110000,110000,NULL,now());
+INSERT INTO kasira.cash_ledger(tenant_id,outlet_id,cash_shift_id,event_id,event_type,amount_minor,business_date,occurred_at,correlation_id)
+VALUES(:'tenant'::uuid,:'outlet'::uuid,'00000000-0000-0000-0000-000000000501','00000000-0000-0000-0000-000000000502','OPENING',100000,CURRENT_DATE,now(),'00000000-00000000-0000-000000000503');
+INSERT INTO kasira.cash_ledger(tenant_id,outlet_id,cash_shift_id,event_id,event_type,amount_minor,business_date,occurred_at,correlation_id)
+VALUES(:'tenant'::uuid,:'outlet'::uuid,'00000000-0000-0000-0000-000000000501','00000000-0000-0000-0000-000000000504','SALE',10000,CURRENT_DATE,now(),'00000000-0000-0000-0000-000000000505');
+SELECT kasira.close_cash_shift_from_ledger(:'tenant'::uuid,'00000000-0000-0000-0000-000000000501',CURRENT_DATE,110000,NULL,now());
 
 -- Payment reconciliation: one matched settlement and one explicit variance.
 INSERT INTO kasira.payment(tenant_id,order_id,method,provider,status,amount_minor,occurred_at)
 VALUES(:'tenant'::uuid,'00000000-0000-0000-0000-000000000101','QRIS','PROVIDER-X','CAPTURED',10000,now());
-INSERT INTO kasira.payment_reconciliation(tenant_id,outlet_id,provider,settlement_reference,period_start,period_end,internal_total_minor,external_total_minor,status)
-VALUES(:'tenant'::uuid,:'outlet'::uuid,'PROVIDER-X','SETTLE-1',CURRENT_DATE,CURRENT_DATE,10000,10000,'MATCHED');
+SELECT kasira.create_payment_reconciliation(:'tenant'::uuid,:'outlet'::uuid,'PROVIDER-X','SETTLE-1',CURRENT_DATE,CURRENT_DATE,10000);
 INSERT INTO kasira.payment_reconciliation_item(tenant_id,reconciliation_id,payment_id,provider_reference,internal_amount_minor,external_amount_minor,status)
 SELECT :'tenant'::uuid,r.id,p.id,'PX-1',10000,10000,'MATCHED'
 FROM kasira.payment_reconciliation r, kasira.payment p
 WHERE r.tenant_id=:'tenant'::uuid AND r.settlement_reference='SETTLE-1' AND p.tenant_id=:'tenant'::uuid AND p.order_id='00000000-0000-0000-0000-000000000101';
 
-INSERT INTO kasira.payment_reconciliation(tenant_id,outlet_id,provider,settlement_reference,period_start,period_end,internal_total_minor,external_total_minor,status)
-VALUES(:'tenant'::uuid,:'outlet'::uuid,'PROVIDER-X','SETTLE-2',CURRENT_DATE,CURRENT_DATE,10000,9500,'VARIANCE');
-INSERT INTO kasira.variance_case(tenant_id,case_type,source_id,reason,variance_minor,status)
-SELECT :'tenant'::uuid,'PAYMENT',id,'PAYMENT_SETTLEMENT_VARIANCE',variance_minor,'OPEN'
-FROM kasira.payment_reconciliation WHERE tenant_id=:'tenant'::uuid AND settlement_reference='SETTLE-2';
+SELECT kasira.create_payment_reconciliation(:'tenant'::uuid,:'outlet'::uuid,'PROVIDER-X','SETTLE-2',CURRENT_DATE,CURRENT_DATE,9500);
 
 -- Final canonical evidence.
 SELECT
