@@ -19,7 +19,7 @@ VALUES(:'tenant'::uuid,'00000000-0000-0000-0000-000000000301',:'variant'::uuid,1
 
 -- Two receipts establish FIFO cost layers: 10 @ 1000 and 5 @ 1200.
 SELECT kasira.post_inventory_event(:'tenant'::uuid,:'warehouse'::uuid,:'variant'::uuid,
- '00000000-0000-0000-0000-000000000401','PURCHASE',10,1000,now(),NULL,NULL,
+ '00000000-0000-0000-0000-000000000401','PURCHASE',10,1000,now()-interval '1 minute',NULL,NULL,
  '00000000-0000-0000-0000-000000000451',NULL,'{"source":"GR-1"}');
 SELECT kasira.post_inventory_event(:'tenant'::uuid,:'warehouse'::uuid,:'variant'::uuid,
  '00000000-0000-0000-0000-000000000402','PURCHASE',5,1200,now(),NULL,NULL,

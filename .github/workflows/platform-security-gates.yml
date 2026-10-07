@@ -1,0 +1,55 @@
+name: platform-security-gates
+on:
+  push:
+    branches: [main]
+  pull_request:
+jobs:
+  platform-security:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: kasira_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres -d kasira_test"
+          --health-interval 5s --health-timeout 5s --health-retries 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install
+      - name: Static contract
+        run: npm run check:schema
+      - name: Unit and offline regression
+        run: npm run test:domain && npm run test:offline
+      - name: Sync regression
+        run: npm run test:sync
+      - name: Pilot readiness regression harness
+        run: npm run phase5:pilot
+      - name: Apply every canonical migration
+        env: {PGPASSWORD: postgres, PGHOST: 127.0.0.1, PGUSER: postgres, PGDATABASE: kasira_test}
+        run: |
+          for f in db/migrations/*.sql; do echo "Applying $f"; psql -v ON_ERROR_STOP=1 -f "$f"; done
+      - name: Canonical regression
+        env: {PGPASSWORD: postgres, PGHOST: 127.0.0.1, PGUSER: postgres, PGDATABASE: kasira_test}
+        run: psql -v ON_ERROR_STOP=1 -f scripts/integration.sql
+      - name: Inventory finance regression
+        env: {PGPASSWORD: postgres, PGHOST: 127.0.0.1, PGUSER: postgres, PGDATABASE: kasira_test}
+        run: psql -v ON_ERROR_STOP=1 -f scripts/phase4-integration.sql
+      - name: Pilot schema gate regression
+        env: {PGPASSWORD: postgres, PGHOST: 127.0.0.1, PGUSER: postgres, PGDATABASE: kasira_test}
+        run: psql -v ON_ERROR_STOP=1 -f scripts/phase5-integration.sql
+      - name: Platform security authorization regression
+        env: {PGPASSWORD: postgres, PGHOST: 127.0.0.1, PGUSER: postgres, PGDATABASE: kasira_test}
+        run: psql -v ON_ERROR_STOP=1 -f scripts/security-platform-integration.sql
+      - name: Verify forced RLS on platform/security tables
+        env: {PGPASSWORD: postgres, PGHOST: 127.0.0.1, PGUSER: postgres, PGDATABASE: kasira_test}
+        run: |
+          test "$(psql -At -c "SELECT count(*) FROM pg_class WHERE relnamespace='kasira'::regnamespace AND relname IN ('feature_flag','release_record','operational_event','role_permission','user_outlet_scope') AND relrowsecurity AND relforcerowsecurity;")" = "5"
+      - name: Diff hygiene
+        run: git diff --check
+      - run: echo "PLATFORM SECURITY GATE EXECUTED"

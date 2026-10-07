@@ -42,8 +42,9 @@ for(let o=0;o<OUTLETS;o++){
   for(const row of store.all("SELECT event_id FROM outbox WHERE status='RETRY'")) store.exec("UPDATE outbox SET next_attempt_at=NULL WHERE event_id=?",[row.event_id]);
   // Continue with canonical server for all remaining events.
   const result=await new SyncProtocol(store,server).drain(100);
+  syncAcked+=first.filter(x=>x.status==="ACKED").length;
   syncAcked+=result.filter(x=>x.status==="ACKED").length;
-  syncAttempts+=result.length;
+  syncAttempts+=first.length+result.length;
 
   const rec=new ReconciliationEngine(store,server).run({tenantId,deviceId:ids.deviceId,periodStart:"2026-10-07",periodEnd:"2026-10-07"});
   if(rec.status!=="PASS") reconciliationExceptions++;
