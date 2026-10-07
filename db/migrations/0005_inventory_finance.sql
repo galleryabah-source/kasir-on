@@ -107,7 +107,7 @@ CREATE TABLE IF NOT EXISTS kasira.payment_reconciliation (
  variance_minor bigint GENERATED ALWAYS AS (external_total_minor-internal_total_minor) STORED,
  status text NOT NULL CHECK(status IN ('MATCHED','VARIANCE','RESOLVED')),
  resolved_at timestamptz, created_at timestamptz NOT NULL DEFAULT now(),
- UNIQUE(tenant_id,settlement_reference),
+ UNIQUE(tenant_id,id), UNIQUE(tenant_id,settlement_reference),
  FOREIGN KEY(tenant_id,outlet_id) REFERENCES kasira.outlet(tenant_id,id),
  CHECK(period_end>=period_start)
 );
