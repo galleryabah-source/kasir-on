@@ -11,7 +11,9 @@
     "offline:integration": "node --experimental-sqlite scripts/offline-integration.mjs",
     "test:sync": "node --experimental-sqlite --test tests/sync-reconciliation.test.mjs",
     "phase3:integration": "node --experimental-sqlite scripts/phase3-integration.mjs",
-    "phase4:integration": "psql -v ON_ERROR_STOP=1 -f scripts/phase4-integration.sql"
+    "phase4:integration": "psql -v ON_ERROR_STOP=1 -f scripts/phase4-integration.sql",
+    "phase5:pilot": "node scripts/phase5-pilot.mjs",
+    "phase5:integration": "psql -v ON_ERROR_STOP=1 -f scripts/phase5-integration.sql"
   },
   "engines": {
     "node": ">=22"
