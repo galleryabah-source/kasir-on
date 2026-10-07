@@ -1,8 +1,8 @@
 import fs from "node:fs"; import path from "node:path";
 const root=path.resolve("db/migrations");
 const files=fs.readdirSync(root).filter(f=>f.endsWith(".sql")).sort();
-if(files.length<3)throw new Error("Expected at least 3 canonical migrations");
-const required=["tenant_id","idempotency_key","correlation_id","audit_log","sales_ledger","inventory_ledger","payment","order_item"];
+if(files.length<5)throw new Error("Expected at least 5 canonical migrations");
+const required=["tenant_id","idempotency_key","correlation_id","audit_log","sales_ledger","inventory_ledger","payment","order_item","cost_layer","inventory_projection","cash_closing","payment_reconciliation","variance_case","post_inventory_sale"];
 const sql=files.map(f=>fs.readFileSync(path.join(root,f),"utf8")).join("\n").toLowerCase();
 for(const token of required)if(!sql.includes(token))throw new Error("Missing schema contract: "+token);
 if(!sql.includes("enable row level security"))throw new Error("RLS is required");
