@@ -34,7 +34,7 @@ test("sync retry preserves local transaction",async()=>{
 test("same order with different payload is an idempotency conflict",()=>{
   const {store,engine,ids}=fixture(); engine.openShift({shiftId:ids.shiftId});
   const orderId=randomUUID(), args=saleArgs(ids,orderId); engine.sell(args);
-  assert.throws(()=>engine.sell({...args,subtotalMinor:9000,totalMinor:9000,paymentMinor:9000,items:[{...args.items[0],lineTotalMinor:9000}]}),/IDEMPOTENCY_CONFLICT/);
+  assert.throws(()=>engine.sell({...args,subtotalMinor:9000,totalMinor:9000,paymentMinor:9000,items:[{...args.items[0],unitPriceMinor:4500,lineTotalMinor:9000}]}),/IDEMPOTENCY_CONFLICT/);
   assert.equal(store.all("SELECT COUNT(*) AS n FROM order_header").at(0).n,1); store.close();
 });
 test("file-backed SQLite survives store reopen",()=>{
