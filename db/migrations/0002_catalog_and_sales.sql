@@ -31,7 +31,7 @@ CREATE TABLE IF NOT EXISTS kasira.order_header (
  tax_minor bigint NOT NULL DEFAULT 0 CHECK(tax_minor>=0),
  total_minor bigint NOT NULL DEFAULT 0 CHECK(total_minor>=0),
  occurred_at timestamptz NOT NULL, created_at timestamptz NOT NULL DEFAULT now(), updated_at timestamptz NOT NULL DEFAULT now(),
- UNIQUE(tenant_id,order_number),
+ UNIQUE(tenant_id,order_number), UNIQUE(tenant_id,id),
  FOREIGN KEY(tenant_id,outlet_id) REFERENCES kasira.outlet(tenant_id,id),
  FOREIGN KEY(tenant_id,device_id) REFERENCES kasira.device(tenant_id,id),
  CHECK(total_minor=subtotal_minor-discount_minor+tax_minor)
