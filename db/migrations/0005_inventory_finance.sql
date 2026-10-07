@@ -111,6 +111,15 @@ CREATE TABLE IF NOT EXISTS kasira.payment_reconciliation (
  FOREIGN KEY(tenant_id,outlet_id) REFERENCES kasira.outlet(tenant_id,id),
  CHECK(period_end>=period_start)
 );
+DO $
+BEGIN
+ IF NOT EXISTS (
+   SELECT 1 FROM pg_constraint WHERE conname='payment_tenant_id_unique'
+ ) THEN
+   ALTER TABLE kasira.payment ADD CONSTRAINT payment_tenant_id_unique UNIQUE(tenant_id,id);
+ END IF;
+END $;
+
 CREATE TABLE IF NOT EXISTS kasira.payment_reconciliation_item (
  id uuid PRIMARY KEY DEFAULT gen_random_uuid(), tenant_id uuid NOT NULL REFERENCES kasira.tenant(id),
  reconciliation_id uuid NOT NULL, payment_id uuid NOT NULL,
