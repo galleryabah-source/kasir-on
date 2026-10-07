@@ -7,6 +7,9 @@ SET LOCAL app.tenant_id='00000000-0000-0000-0000-000000000001';
 SELECT id AS outlet FROM kasira.outlet WHERE tenant_id=:'tenant'::uuid AND code='O1' \gset
 SELECT id AS warehouse FROM kasira.warehouse WHERE tenant_id=:'tenant'::uuid AND code='W1' \gset
 SELECT id AS variant FROM kasira.product_variant WHERE tenant_id=:'tenant'::uuid AND sku='VAR-1' \gset
+SET LOCAL phase4.tenant_id = :'tenant';
+SET LOCAL phase4.warehouse_id = :'warehouse';
+SET LOCAL phase4.variant_id = :'variant';
 
 -- Purchase order is the commercial source for the first receipt.
 INSERT INTO kasira.purchase_order(id,tenant_id,outlet_id,supplier_name,supplier_reference,total_minor,occurred_at)
@@ -32,23 +35,23 @@ FROM kasira.goods_receipt WHERE tenant_id=:'tenant'::uuid AND receipt_number='GR
 DO $$
 DECLARE c numeric;
 BEGIN
- c:=kasira.post_inventory_sale(:'tenant'::uuid,:'warehouse'::uuid,:'variant'::uuid,
+ c:=kasira.post_inventory_sale(current_setting('phase4.tenant_id')::uuid,current_setting('phase4.warehouse_id')::uuid,current_setting('phase4.variant_id')::uuid,
  '00000000-0000-0000-0000-000000000403',12,now(),NULL,NULL,
  '00000000-0000-0000-0000-000000000453',NULL,'{"order":"ORD-1"}');
  IF c<>12400 THEN RAISE EXCEPTION 'FIFO COGS mismatch: %',c; END IF;
 END $$;
 
 -- Redelivery of the same inventory event is idempotent and must not consume FIFO twice.
-DO $
+DO $$
 DECLARE c numeric; q numeric;
 BEGIN
- c:=kasira.post_inventory_sale(:'tenant'::uuid,:'warehouse'::uuid,:'variant'::uuid,
+ c:=kasira.post_inventory_sale(current_setting('phase4.tenant_id')::uuid,current_setting('phase4.warehouse_id')::uuid,current_setting('phase4.variant_id')::uuid,
  '00000000-0000-0000-0000-000000000403',12,now(),NULL,NULL,
  '00000000-0000-0000-0000-000000000453',NULL);
  SELECT quantity_on_hand INTO q FROM kasira.inventory_projection
- WHERE tenant_id=:'tenant'::uuid AND warehouse_id=:'warehouse'::uuid AND product_variant_id=:'variant'::uuid;
+ WHERE tenant_id=current_setting('phase4.tenant_id')::uuid AND warehouse_id=current_setting('phase4.warehouse_id')::uuid AND product_variant_id=current_setting('phase4.variant_id')::uuid;
  IF c<>12400 OR q<>3 THEN RAISE EXCEPTION 'inventory idempotency failed: cost %, qty %',c,q; END IF;
-END $;
+END $$;
 
 -- Ledger value and projection must be identical.
 DO $$
@@ -56,11 +59,11 @@ DECLARE ledger_qty numeric; ledger_value numeric; projection_qty numeric; projec
 BEGIN
  SELECT COALESCE(SUM(quantity),0),COALESCE(SUM(quantity*unit_cost_minor),0)
  INTO ledger_qty,ledger_value FROM kasira.inventory_ledger
- WHERE tenant_id=:'tenant'::uuid AND warehouse_id=:'warehouse'::uuid AND product_variant_id=:'variant'::uuid;
+ WHERE tenant_id=current_setting('phase4.tenant_id')::uuid AND warehouse_id=current_setting('phase4.warehouse_id')::uuid AND product_variant_id=current_setting('phase4.variant_id')::uuid;
  SELECT quantity_on_hand,inventory_value_minor INTO projection_qty,projection_value
- FROM kasira.inventory_projection WHERE tenant_id=:'tenant'::uuid AND warehouse_id=:'warehouse'::uuid AND product_variant_id=:'variant'::uuid;
+ FROM kasira.inventory_projection WHERE tenant_id=current_setting('phase4.tenant_id')::uuid AND warehouse_id=current_setting('phase4.warehouse_id')::uuid AND product_variant_id=current_setting('phase4.variant_id')::uuid;
  SELECT COALESCE(SUM(remaining_quantity),0) INTO layer_qty FROM kasira.cost_layer
- WHERE tenant_id=:'tenant'::uuid AND warehouse_id=:'warehouse'::uuid AND product_variant_id=:'variant'::uuid;
+ WHERE tenant_id=current_setting('phase4.tenant_id')::uuid AND warehouse_id=current_setting('phase4.warehouse_id')::uuid AND product_variant_id=current_setting('phase4.variant_id')::uuid;
  IF ledger_qty<>projection_qty OR ledger_value<>projection_value OR layer_qty<>projection_qty
  THEN RAISE EXCEPTION 'LEDGER_PROJECTION_MISMATCH qty %, % value %, % layer %',ledger_qty,projection_qty,ledger_value,projection_value,layer_qty; END IF;
  IF projection_qty<>3 OR projection_value<>3600 THEN RAISE EXCEPTION 'Unexpected FIFO projection: % / %',projection_qty,projection_value; END IF;
@@ -70,7 +73,7 @@ END $$;
 DO $$
 BEGIN
  BEGIN
-  PERFORM kasira.post_inventory_sale(:'tenant'::uuid,:'warehouse'::uuid,:'variant'::uuid,
+  PERFORM kasira.post_inventory_sale(current_setting('phase4.tenant_id')::uuid,current_setting('phase4.warehouse_id')::uuid,current_setting('phase4.variant_id')::uuid,
    '00000000-0000-0000-0000-000000000404',99,now(),NULL,NULL,
    '00000000-0000-0000-0000-000000000454',NULL);
   RAISE EXCEPTION 'insufficient stock unexpectedly passed';
@@ -99,13 +102,13 @@ VALUES(:'tenant'::uuid,:'outlet'::uuid,'00000000-0000-0000-0000-000000000501','0
 SELECT kasira.close_cash_shift_from_ledger(:'tenant'::uuid,'00000000-0000-0000-0000-000000000501',CURRENT_DATE,110000,NULL,now());
 
 -- Closing and settlement creation are retry-safe for identical inputs.
-DO $
+DO $$
 DECLARE a uuid; b uuid;
 BEGIN
- a:=kasira.close_cash_shift_from_ledger(:'tenant'::uuid,'00000000-0000-0000-0000-000000000501',CURRENT_DATE,110000,NULL,now());
- b:=kasira.close_cash_shift_from_ledger(:'tenant'::uuid,'00000000-0000-0000-0000-000000000501',CURRENT_DATE,110000,NULL,now());
+ a:=kasira.close_cash_shift_from_ledger(current_setting('phase4.tenant_id')::uuid,'00000000-0000-0000-0000-000000000501',CURRENT_DATE,110000,NULL,now());
+ b:=kasira.close_cash_shift_from_ledger(current_setting('phase4.tenant_id')::uuid,'00000000-0000-0000-0000-000000000501',CURRENT_DATE,110000,NULL,now());
  IF a<>b THEN RAISE EXCEPTION 'cash closing idempotency failed'; END IF;
-END $;
+END $$;
 
 -- Payment reconciliation: one matched settlement and one explicit variance.
 INSERT INTO kasira.payment(tenant_id,order_id,method,provider,status,amount_minor,occurred_at)
@@ -119,19 +122,19 @@ WHERE r.tenant_id=:'tenant'::uuid AND r.settlement_reference='SETTLE-1' AND p.te
 SELECT kasira.create_payment_reconciliation(:'tenant'::uuid,:'outlet'::uuid,'PROVIDER-X','SETTLE-2',CURRENT_DATE,CURRENT_DATE,9500);
 
 -- Final ledger/projection/cost-layer invariant after stock opname.
-DO $
+DO $$
 DECLARE ledger_qty numeric; ledger_value numeric; projection_qty numeric; projection_value numeric; layer_qty numeric;
 BEGIN
  SELECT COALESCE(SUM(quantity),0),COALESCE(SUM(quantity*unit_cost_minor),0)
  INTO ledger_qty,ledger_value FROM kasira.inventory_ledger
- WHERE tenant_id=:'tenant'::uuid AND warehouse_id=:'warehouse'::uuid AND product_variant_id=:'variant'::uuid;
+ WHERE tenant_id=current_setting('phase4.tenant_id')::uuid AND warehouse_id=current_setting('phase4.warehouse_id')::uuid AND product_variant_id=current_setting('phase4.variant_id')::uuid;
  SELECT quantity_on_hand,inventory_value_minor INTO projection_qty,projection_value
- FROM kasira.inventory_projection WHERE tenant_id=:'tenant'::uuid AND warehouse_id=:'warehouse'::uuid AND product_variant_id=:'variant'::uuid;
+ FROM kasira.inventory_projection WHERE tenant_id=current_setting('phase4.tenant_id')::uuid AND warehouse_id=current_setting('phase4.warehouse_id')::uuid AND product_variant_id=current_setting('phase4.variant_id')::uuid;
  SELECT COALESCE(SUM(remaining_quantity),0) INTO layer_qty FROM kasira.cost_layer
- WHERE tenant_id=:'tenant'::uuid AND warehouse_id=:'warehouse'::uuid AND product_variant_id=:'variant'::uuid;
+ WHERE tenant_id=current_setting('phase4.tenant_id')::uuid AND warehouse_id=current_setting('phase4.warehouse_id')::uuid AND product_variant_id=current_setting('phase4.variant_id')::uuid;
  IF ledger_qty<>projection_qty OR ledger_value<>projection_value OR layer_qty<>projection_qty
  THEN RAISE EXCEPTION 'FINAL_LEDGER_PROJECTION_LAYER_MISMATCH qty %, % layer % value %, %',ledger_qty,projection_qty,layer_qty,ledger_value,projection_value; END IF;
-END $;
+END $$;
 
 -- Final canonical evidence.
 SELECT
