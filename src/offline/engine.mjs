@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { randomUUID, createHash } from "node:crypto";
 import { OfflineDomainError, ERR } from "./errors.mjs";
 const now=()=>new Date().toISOString();
 export class OfflinePOSEngine {
@@ -31,11 +31,13 @@ export class OfflinePOSEngine {
     const occurredAt=now(), correlationId=randomUUID(), idemKey=`sale:${d.tenant_id}:${this.deviceId}:${orderId}`;
     const payload={orderId,tenantId:d.tenant_id,outletId:d.outlet_id,deviceId:d.device_id,actorId:d.actor_id,businessDate,
       subtotalMinor,discountMinor,taxMinor,totalMinor,items:normalized,payment:{method:"CASH",amountMinor:paymentMinor}};
+    const requestHash=createHash("sha256").update(JSON.stringify(payload)).digest("hex");
     return this.store.insertSaleAtomic({
       order:{orderId,tenantId:d.tenant_id,outletId:d.outlet_id,deviceId:d.device_id,actorId:d.actor_id,shiftId:shift.shift_id,
         businessDate,subtotalMinor,discountMinor,taxMinor,totalMinor,occurredAt,createdAt:occurredAt},
       items:normalized,payment:{paymentId:randomUUID(),amountMinor:paymentMinor,occurredAt},
       receipt:{receiptId:randomUUID(),receiptNumber:receiptNumber??`R-${businessDate.replaceAll("-","")}-${orderId.slice(0,8).toUpperCase()}`,payload,createdAt:occurredAt},
+      requestHash,
       outbox:{eventId:randomUUID(),tenantId:d.tenant_id,aggregateId:orderId,eventType:"SALE_COMMIT",eventVersion:1,occurredAt,
         idempotencyKey:idemKey,correlationId,causationId:null,payload,createdAt:occurredAt}
     });
