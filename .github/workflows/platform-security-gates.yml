@@ -43,6 +43,9 @@ jobs:
       - name: Pilot schema gate regression
         env: {PGPASSWORD: postgres, PGHOST: 127.0.0.1, PGUSER: postgres, PGDATABASE: kasira_test}
         run: psql -v ON_ERROR_STOP=1 -f scripts/phase5-integration.sql
+      - name: Phase 6A multi-outlet transfer regression
+        env: {PGPASSWORD: postgres, PGHOST: 127.0.0.1, PGUSER: postgres, PGDATABASE: kasira_test}
+        run: psql -v ON_ERROR_STOP=1 -f scripts/phase6a-transfer-integration.sql
       - name: Platform security authorization regression
         env: {PGPASSWORD: postgres, PGHOST: 127.0.0.1, PGUSER: postgres, PGDATABASE: kasira_test}
         run: psql -v ON_ERROR_STOP=1 -f scripts/security-platform-integration.sql
