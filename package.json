@@ -1,0 +1,6 @@
+{
+  "name":"kasira","private":true,"version":"0.1.0",
+  "description":"KASIRA canonical core foundation",
+  "scripts":{"test:domain":"node --test tests/domain-invariants.test.mjs","check:schema":"node scripts/check-schema.mjs","check":"npm run check:schema && npm run test:domain"},
+  "engines":{"node":">=22"}
+}
