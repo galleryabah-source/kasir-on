@@ -31,7 +31,8 @@ export class OfflinePOSEngine {
     const occurredAt=now(), correlationId=randomUUID(), idemKey=`sale:${d.tenant_id}:${this.deviceId}:${orderId}`;
     const payload={orderId,tenantId:d.tenant_id,outletId:d.outlet_id,deviceId:d.device_id,actorId:d.actor_id,businessDate,
       subtotalMinor,discountMinor,taxMinor,totalMinor,items:normalized,payment:{method:"CASH",amountMinor:paymentMinor}};
-    const requestHash=createHash("sha256").update(JSON.stringify(payload)).digest("hex");
+    const hashPayload={...payload,items:normalized.map(({orderItemId,...item})=>item)};
+    const requestHash=createHash("sha256").update(JSON.stringify(hashPayload)).digest("hex");
     return this.store.insertSaleAtomic({
       order:{orderId,tenantId:d.tenant_id,outletId:d.outlet_id,deviceId:d.device_id,actorId:d.actor_id,shiftId:shift.shift_id,
         businessDate,subtotalMinor,discountMinor,taxMinor,totalMinor,occurredAt,createdAt:occurredAt},
