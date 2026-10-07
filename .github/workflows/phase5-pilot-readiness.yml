@@ -1,0 +1,49 @@
+name: phase5-pilot-readiness
+on:
+  push:
+    branches: [main]
+  pull_request:
+jobs:
+  phase5-pilot-readiness:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: kasira_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres -d kasira_test"
+          --health-interval 5s --health-timeout 5s --health-retries 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: 22}
+      - run: npm install
+      - run: npm run check
+      - run: npm run test:offline
+      - run: npm run test:sync
+      - run: npm run phase3:integration
+      - run: npm run phase5:pilot
+      - name: Apply canonical migrations
+        env: {PGPASSWORD: postgres, PGHOST: 127.0.0.1, PGUSER: postgres, PGDATABASE: kasira_test}
+        run: |
+          for f in db/migrations/*.sql; do
+            echo "Applying $f"
+            psql -v ON_ERROR_STOP=1 -f "$f"
+          done
+      - name: Canonical Phase 4 integration regression
+        env: {PGPASSWORD: postgres, PGHOST: 127.0.0.1, PGUSER: postgres, PGDATABASE: kasira_test}
+        run: psql -v ON_ERROR_STOP=1 -f scripts/integration.sql
+      - name: Phase 4 inventory finance regression
+        env: {PGPASSWORD: postgres, PGHOST: 127.0.0.1, PGUSER: postgres, PGDATABASE: kasira_test}
+        run: psql -v ON_ERROR_STOP=1 -f scripts/phase4-integration.sql
+      - name: Phase 5 PostgreSQL operational gate
+        env: {PGPASSWORD: postgres, PGHOST: 127.0.0.1, PGUSER: postgres, PGDATABASE: kasira_test}
+        run: psql -v ON_ERROR_STOP=1 -f scripts/phase5-integration.sql
+      - name: Verify Phase 5 forced RLS
+        env: {PGPASSWORD: postgres, PGHOST: 127.0.0.1, PGUSER: postgres, PGDATABASE: kasira_test}
+        run: |
+          test "$(psql -At -v ON_ERROR_STOP=1 -c "SELECT count(*) FROM pg_class WHERE relnamespace='kasira'::regnamespace AND relname IN ('pilot_run','pilot_outlet','pilot_metric','support_incident','uptime_heartbeat') AND relrowsecurity AND relforcerowsecurity;")" = "5"
+      - run: echo "PHASE 5 PILOT READINESS GATE EXECUTED"
