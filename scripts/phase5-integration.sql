@@ -1,6 +1,6 @@
 BEGIN;
 SET LOCAL app.tenant_id='00000000-0000-0000-0000-000000000001';
-DO $
+DO $pilot_fixture$
 DECLARE run_id uuid:=gen_random_uuid(); outlet_id uuid; i integer; now_ts timestamptz:=now(); brand_id uuid;
 BEGIN
  SELECT id INTO brand_id FROM kasira.brand WHERE tenant_id='00000000-0000-0000-0000-000000000001' ORDER BY id LIMIT 1;
@@ -27,5 +27,5 @@ BEGIN
  UPDATE kasira.pilot_run SET status=(SELECT status FROM kasira.pilot_gate('00000000-0000-0000-0000-000000000001',run_id)),ended_at=now() WHERE id=run_id;
  IF (SELECT status FROM kasira.pilot_run WHERE id=run_id)<>'PASS' THEN RAISE EXCEPTION 'PHASE5 PILOT GATE FAILED'; END IF;
  RAISE NOTICE 'PHASE5 PILOT GATE PASS run=%',run_id;
-END $$;
+END $pilot_fixture$;
 COMMIT;
