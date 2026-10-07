@@ -111,7 +111,7 @@ export class SQLiteLocalStore {
         [payment.paymentId,order.orderId,"CASH","CAPTURED",payment.amountMinor,"IDR",payment.occurredAt]);
       this.exec("INSERT INTO receipt VALUES(?,?,?,?,?)",
         [receipt.receiptId,order.orderId,receipt.receiptNumber,JSON.stringify(receipt.payload),receipt.createdAt]);
-      this.exec("INSERT INTO outbox VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+      this.exec("INSERT INTO outbox VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
         [outbox.eventId,outbox.tenantId,outbox.aggregateId,outbox.eventType,outbox.eventVersion,outbox.occurredAt,
          outbox.idempotencyKey,outbox.correlationId,outbox.causationId,JSON.stringify(outbox.payload),
          "PENDING",0,null,null,outbox.createdAt,outbox.localSequence,null,null]);
