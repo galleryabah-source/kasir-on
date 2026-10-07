@@ -1,11 +1,15 @@
 BEGIN;
 SET LOCAL app.tenant_id='00000000-0000-0000-0000-000000000001';
-DO $$
-DECLARE run_id uuid:=gen_random_uuid(); outlet_id uuid; i integer; now_ts timestamptz:=now();
+DO $
+DECLARE run_id uuid:=gen_random_uuid(); outlet_id uuid; i integer; now_ts timestamptz:=now(); brand_id uuid;
 BEGIN
+ SELECT id INTO brand_id FROM kasira.brand WHERE tenant_id='00000000-0000-0000-0000-000000000001' ORDER BY id LIMIT 1;
+ FOR i IN 1..5 LOOP
+   INSERT INTO kasira.outlet(tenant_id,brand_id,code,name) VALUES('00000000-0000-0000-0000-000000000001',brand_id,'PILOT-'||i,'CI Pilot Outlet '||i) ON CONFLICT (tenant_id,code) DO NOTHING;
+ END LOOP
  INSERT INTO kasira.pilot_run(id,tenant_id,name,outlet_target,started_at,status)
  VALUES(run_id,'00000000-0000-0000-0000-000000000001','CI Pilot Readiness',5,now_ts,'RUNNING');
- FOR outlet_id IN SELECT id FROM kasira.outlet WHERE tenant_id='00000000-0000-0000-0000-000000000001' ORDER BY id LIMIT 5 LOOP
+ FOR outlet_id IN SELECT id FROM kasira.outlet WHERE tenant_id='00000000-0000-0000-0000-000000000001' AND code LIKE 'PILOT-%' ORDER BY code LIMIT 5 LOOP
    INSERT INTO kasira.pilot_outlet(tenant_id,pilot_run_id,outlet_id,cashier_target,cashier_active,first_seen_at,last_seen_at,status)
    VALUES('00000000-0000-0000-0000-000000000001',run_id,outlet_id,2,2,now_ts,now_ts,'COMPLETED');
    INSERT INTO kasira.uptime_heartbeat(tenant_id,pilot_run_id,outlet_id,observed_at,status,latency_ms)
