@@ -38,6 +38,18 @@ BEGIN
  IF c<>12400 THEN RAISE EXCEPTION 'FIFO COGS mismatch: %',c; END IF;
 END $$;
 
+-- Redelivery of the same inventory event is idempotent and must not consume FIFO twice.
+DO $
+DECLARE c numeric; q numeric;
+BEGIN
+ c:=kasira.post_inventory_sale('00000000-0000-0000-0000-000000000001','00000000-0000-0000-0000-000000000001','00000000-0000-0000-0000-000000000001',
+ '00000000-0000-0000-0000-000000000403',12,now(),NULL,NULL,
+ '00000000-0000-0000-0000-000000000453',NULL);
+ SELECT quantity_on_hand INTO q FROM kasira.inventory_projection
+ WHERE tenant_id=:'tenant'::uuid AND warehouse_id=:'warehouse'::uuid AND product_variant_id=:'variant'::uuid;
+ IF c<>12400 OR q<>3 THEN RAISE EXCEPTION 'inventory idempotency failed: cost %, qty %',c,q; END IF;
+END $;
+
 -- Ledger value and projection must be identical.
 DO $$
 DECLARE ledger_qty numeric; ledger_value numeric; projection_qty numeric; projection_value numeric; layer_qty numeric;
@@ -85,6 +97,15 @@ VALUES('00000000-0000-0000-0000-000000000501',:'tenant'::uuid,:'outlet'::uuid,CU
 INSERT INTO kasira.cash_ledger(tenant_id,outlet_id,cash_shift_id,event_id,event_type,amount_minor,business_date,occurred_at,correlation_id)
 VALUES(:'tenant'::uuid,:'outlet'::uuid,'00000000-0000-0000-0000-000000000501','00000000-0000-0000-0000-000000000504','SALE',10000,CURRENT_DATE,now(),'00000000-0000-0000-0000-000000000505');
 SELECT kasira.close_cash_shift_from_ledger(:'tenant'::uuid,'00000000-0000-0000-0000-000000000501',CURRENT_DATE,110000,NULL,now());
+
+-- Closing and settlement creation are retry-safe for identical inputs.
+DO $
+DECLARE a uuid; b uuid;
+BEGIN
+ a:=kasira.close_cash_shift_from_ledger(:'tenant'::uuid,'00000000-0000-0000-0000-000000000501',CURRENT_DATE,110000,NULL,now());
+ b:=kasira.close_cash_shift_from_ledger(:'tenant'::uuid,'00000000-0000-0000-0000-000000000501',CURRENT_DATE,110000,NULL,now());
+ IF a<>b THEN RAISE EXCEPTION 'cash closing idempotency failed'; END IF;
+END $;
 
 -- Payment reconciliation: one matched settlement and one explicit variance.
 INSERT INTO kasira.payment(tenant_id,order_id,method,provider,status,amount_minor,occurred_at)
