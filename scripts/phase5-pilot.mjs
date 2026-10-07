@@ -64,6 +64,7 @@ const metrics={
   uptime_pct:100,
   support_critical_incidents:0
 };
+console.log("PHASE_5_SYNTHETIC_METRICS",JSON.stringify(metrics));
 const pass=OUTLETS>=5&&OUTLETS<=10&&metrics.checkout_latency_p95_ms<=1500&&metrics.offline_duration_hours>=24&&
  metrics.sync_success_rate_pct>=99&&metrics.reconciliation_exception_rate_pct<=1&&metrics.payment_success_rate_pct>=99&&
  metrics.inventory_integrity_pct>=100&&metrics.cashier_adoption_pct>=80&&metrics.uptime_pct>=99&&metrics.support_critical_incidents===0;
