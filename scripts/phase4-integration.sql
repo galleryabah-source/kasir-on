@@ -57,7 +57,7 @@ END $$;
 DO $$
 DECLARE ledger_qty numeric; ledger_value numeric; projection_qty numeric; projection_value numeric; layer_qty numeric;
 BEGIN
- SELECT COALESCE(SUM(quantity),0),COALESCE(SUM(quantity*unit_cost_minor),0)
+ SELECT COALESCE(SUM(quantity),0),COALESCE(SUM(value_minor),0)
  INTO ledger_qty,ledger_value FROM kasira.inventory_ledger
  WHERE tenant_id=current_setting('phase4.tenant_id')::uuid AND warehouse_id=current_setting('phase4.warehouse_id')::uuid AND product_variant_id=current_setting('phase4.variant_id')::uuid;
  SELECT quantity_on_hand,inventory_value_minor INTO projection_qty,projection_value
@@ -125,7 +125,7 @@ SELECT kasira.create_payment_reconciliation(:'tenant'::uuid,:'outlet'::uuid,'PRO
 DO $$
 DECLARE ledger_qty numeric; ledger_value numeric; projection_qty numeric; projection_value numeric; layer_qty numeric;
 BEGIN
- SELECT COALESCE(SUM(quantity),0),COALESCE(SUM(quantity*unit_cost_minor),0)
+ SELECT COALESCE(SUM(quantity),0),COALESCE(SUM(value_minor),0)
  INTO ledger_qty,ledger_value FROM kasira.inventory_ledger
  WHERE tenant_id=current_setting('phase4.tenant_id')::uuid AND warehouse_id=current_setting('phase4.warehouse_id')::uuid AND product_variant_id=current_setting('phase4.variant_id')::uuid;
  SELECT quantity_on_hand,inventory_value_minor INTO projection_qty,projection_value
