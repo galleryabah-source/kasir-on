@@ -32,7 +32,7 @@ FROM kasira.goods_receipt WHERE tenant_id=:'tenant'::uuid AND receipt_number='GR
 DO $$
 DECLARE c numeric;
 BEGIN
- c:=kasira.post_inventory_sale('00000000-0000-0000-0000-000000000001','00000000-0000-0000-0000-000000000001','00000000-0000-0000-0000-000000000001',
+ c:=kasira.post_inventory_sale(:'tenant'::uuid,:'warehouse'::uuid,:'variant'::uuid,
  '00000000-0000-0000-0000-000000000403',12,now(),NULL,NULL,
  '00000000-0000-0000-0000-000000000453',NULL,'{"order":"ORD-1"}');
  IF c<>12400 THEN RAISE EXCEPTION 'FIFO COGS mismatch: %',c; END IF;
@@ -42,7 +42,7 @@ END $$;
 DO $
 DECLARE c numeric; q numeric;
 BEGIN
- c:=kasira.post_inventory_sale('00000000-0000-0000-0000-000000000001','00000000-0000-0000-0000-000000000001','00000000-0000-0000-0000-000000000001',
+ c:=kasira.post_inventory_sale(:'tenant'::uuid,:'warehouse'::uuid,:'variant'::uuid,
  '00000000-0000-0000-0000-000000000403',12,now(),NULL,NULL,
  '00000000-0000-0000-0000-000000000453',NULL);
  SELECT quantity_on_hand INTO q FROM kasira.inventory_projection
@@ -70,7 +70,7 @@ END $$;
 DO $$
 BEGIN
  BEGIN
-  PERFORM kasira.post_inventory_sale('00000000-0000-0000-0000-000000000001','00000000-0000-0000-0000-000000000001','00000000-0000-0000-0000-000000000001',
+  PERFORM kasira.post_inventory_sale(:'tenant'::uuid,:'warehouse'::uuid,:'variant'::uuid,
    '00000000-0000-0000-0000-000000000404',99,now(),NULL,NULL,
    '00000000-0000-0000-0000-000000000454',NULL);
   RAISE EXCEPTION 'insufficient stock unexpectedly passed';
