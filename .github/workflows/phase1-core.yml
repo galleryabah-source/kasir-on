@@ -1,0 +1,42 @@
+name: phase1-core
+on:
+  push:
+    branches: [main]
+  pull_request:
+jobs:
+  phase1-core:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: kasira_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres -d kasira_test"
+          --health-interval 5s --health-timeout 5s --health-retries 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: 22}
+      - run: npm install
+      - run: npm run check:schema
+      - run: npm run test:domain
+      - name: Apply canonical migrations
+        env: {PGPASSWORD: postgres}
+        run: |
+          for f in db/migrations/*.sql; do
+            echo "Applying $f"
+            psql -h 127.0.0.1 -U postgres -d kasira_test -v ON_ERROR_STOP=1 -f "$f"
+          done
+      - name: Verify RLS
+        env: {PGPASSWORD: postgres}
+        run: |
+          psql -h 127.0.0.1 -U postgres -d kasira_test -v ON_ERROR_STOP=1 -c "SELECT tablename, rowsecurity, forcerowsecurity FROM pg_tables WHERE schemaname='kasira' ORDER BY tablename;"
+          psql -h 127.0.0.1 -U postgres -d kasira_test -v ON_ERROR_STOP=1 -c "SELECT schemaname,tablename,policyname FROM pg_policies WHERE schemaname='kasira' ORDER BY tablename;"
+      - name: Verify constraints
+        env: {PGPASSWORD: postgres}
+        run: |
+          psql -h 127.0.0.1 -U postgres -d kasira_test -v ON_ERROR_STOP=1 -c "SELECT conname FROM pg_constraint c JOIN pg_class r ON r.oid=c.conrelid JOIN pg_namespace n ON n.oid=r.relnamespace WHERE n.nspname='kasira' ORDER BY conname;"
+      - run: echo "PHASE 1 CORE MIGRATION GATE EXECUTED"
