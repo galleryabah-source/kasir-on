@@ -16,3 +16,6 @@
 - Cash balanced closing is recorded as BALANCED.
 - Payment settlement mismatch is recorded as VARIANCE and creates an OPEN variance case.
 - Phase 1, Phase 2, and Phase 3 tests remain green.
+
+## Final gate note
+Exact inventory event valuation is represented by inventory_ledger.value_minor; unit_cost_minor remains the reporting unit cost.
