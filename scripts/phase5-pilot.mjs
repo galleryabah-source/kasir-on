@@ -42,8 +42,9 @@ for(let o=0;o<OUTLETS;o++){
   for(const row of store.all("SELECT event_id FROM outbox WHERE status='RETRY'")) store.exec("UPDATE outbox SET next_attempt_at=NULL WHERE event_id=?",[row.event_id]);
   // Continue with canonical server for all remaining events.
   const result=await new SyncProtocol(store,server).drain(100);
+  syncAcked+=first.filter(x=>x.status==="ACKED").length;
   syncAcked+=result.filter(x=>x.status==="ACKED").length;
-  syncAttempts+=result.length;
+  syncAttempts+=first.length+result.length;
 
   const rec=new ReconciliationEngine(store,server).run({tenantId,deviceId:ids.deviceId,periodStart:"2026-10-07",periodEnd:"2026-10-07"});
   if(rec.status!=="PASS") reconciliationExceptions++;
@@ -64,7 +65,6 @@ const metrics={
   uptime_pct:100,
   support_critical_incidents:0
 };
-console.log("PHASE_5_SYNTHETIC_METRICS",JSON.stringify(metrics));
 const pass=OUTLETS>=5&&OUTLETS<=10&&metrics.checkout_latency_p95_ms<=1500&&metrics.offline_duration_hours>=24&&
  metrics.sync_success_rate_pct>=99&&metrics.reconciliation_exception_rate_pct<=1&&metrics.payment_success_rate_pct>=99&&
  metrics.inventory_integrity_pct>=100&&metrics.cashier_adoption_pct>=80&&metrics.uptime_pct>=99&&metrics.support_critical_incidents===0;
