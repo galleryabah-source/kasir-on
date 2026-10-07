@@ -33,7 +33,7 @@ jobs:
       - name: Verify RLS
         env: {PGPASSWORD: postgres}
         run: |
-          psql -h 127.0.0.1 -U postgres -d kasira_test -v ON_ERROR_STOP=1 -c "SELECT tablename, rowsecurity, forcerowsecurity FROM pg_tables WHERE schemaname='kasira' ORDER BY tablename;"
+          psql -h 127.0.0.1 -U postgres -d kasira_test -v ON_ERROR_STOP=1 -c "SELECT c.relname AS tablename, c.relrowsecurity AS rowsecurity, c.relforcerowsecurity AS forcerowsecurity FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='kasira' AND c.relkind='r' ORDER BY c.relname;"
           psql -h 127.0.0.1 -U postgres -d kasira_test -v ON_ERROR_STOP=1 -c "SELECT schemaname,tablename,policyname FROM pg_policies WHERE schemaname='kasira' ORDER BY tablename;"
       - name: Verify constraints
         env: {PGPASSWORD: postgres}
