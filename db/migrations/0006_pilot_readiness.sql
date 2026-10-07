@@ -58,11 +58,15 @@ ALTER TABLE kasira.pilot_metric FORCE ROW LEVEL SECURITY;
 ALTER TABLE kasira.support_incident FORCE ROW LEVEL SECURITY;
 ALTER TABLE kasira.uptime_heartbeat FORCE ROW LEVEL SECURITY;
 
-DO $ BEGIN CREATE POLICY pilot_run_tenant ON kasira.pilot_run USING (tenant_id=kasira.current_tenant_id()) WITH CHECK (tenant_id=kasira.current_tenant_id()); EXCEPTION WHEN duplicate_object THEN NULL; END $;
-DO $ BEGIN CREATE POLICY pilot_outlet_tenant ON kasira.pilot_outlet USING (tenant_id=kasira.current_tenant_id()) WITH CHECK (tenant_id=kasira.current_tenant_id()); EXCEPTION WHEN duplicate_object THEN NULL; END $;
-DO $ BEGIN CREATE POLICY pilot_metric_tenant ON kasira.pilot_metric USING (tenant_id=kasira.current_tenant_id()) WITH CHECK (tenant_id=kasira.current_tenant_id()); EXCEPTION WHEN duplicate_object THEN NULL; END $;
-DO $ BEGIN CREATE POLICY support_incident_tenant ON kasira.support_incident USING (tenant_id=kasira.current_tenant_id()) WITH CHECK (tenant_id=kasira.current_tenant_id()); EXCEPTION WHEN duplicate_object THEN NULL; END $;
-DO $ BEGIN CREATE POLICY uptime_heartbeat_tenant ON kasira.uptime_heartbeat USING (tenant_id=kasira.current_tenant_id()) WITH CHECK (tenant_id=kasira.current_tenant_id()); EXCEPTION WHEN duplicate_object THEN NULL; END $;
+DO $
+BEGIN
+  CREATE POLICY pilot_run_tenant ON kasira.pilot_run USING (tenant_id=kasira.current_tenant_id()) WITH CHECK (tenant_id=kasira.current_tenant_id());
+  CREATE POLICY pilot_outlet_tenant ON kasira.pilot_outlet USING (tenant_id=kasira.current_tenant_id()) WITH CHECK (tenant_id=kasira.current_tenant_id());
+  CREATE POLICY pilot_metric_tenant ON kasira.pilot_metric USING (tenant_id=kasira.current_tenant_id()) WITH CHECK (tenant_id=kasira.current_tenant_id());
+  CREATE POLICY support_incident_tenant ON kasira.support_incident USING (tenant_id=kasira.current_tenant_id()) WITH CHECK (tenant_id=kasira.current_tenant_id());
+  CREATE POLICY uptime_heartbeat_tenant ON kasira.uptime_heartbeat USING (tenant_id=kasira.current_tenant_id()) WITH CHECK (tenant_id=kasira.current_tenant_id());
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $;
 
 CREATE OR REPLACE FUNCTION kasira.pilot_gate(p_tenant_id uuid,p_pilot_run_id uuid)
 RETURNS TABLE(status text,reason text) LANGUAGE sql AS $$
