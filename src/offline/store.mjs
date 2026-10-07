@@ -32,6 +32,9 @@ CREATE TABLE IF NOT EXISTS payment (
   status TEXT NOT NULL CHECK(status = 'CAPTURED'), amount_minor INTEGER NOT NULL CHECK(amount_minor >= 0),
   currency TEXT NOT NULL DEFAULT 'IDR', occurred_at TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS local_idempotency (
+  idempotency_key TEXT PRIMARY KEY, request_hash TEXT NOT NULL, order_id TEXT NOT NULL, created_at TEXT NOT NULL
+);
 CREATE TABLE IF NOT EXISTS receipt (
   receipt_id TEXT PRIMARY KEY, order_id TEXT NOT NULL UNIQUE REFERENCES order_header(order_id),
   receipt_number TEXT NOT NULL UNIQUE, payload_json TEXT NOT NULL, created_at TEXT NOT NULL
@@ -90,9 +93,14 @@ export class SQLiteLocalStore {
     });
   }
   openShiftForDevice(deviceId) { return this.get("SELECT * FROM shift WHERE device_id=? AND status='OPEN'", [deviceId]); }
-  insertSaleAtomic({order,items,payment,receipt,outbox}) {
+  insertSaleAtomic({order,items,payment,receipt,outbox,requestHash}) {
     return this.tx(() => {
-      if (this.get("SELECT order_id FROM order_header WHERE order_id=?", [order.orderId])) return {duplicate:true, order:this.getOrder(order.orderId)};
+      const existing=this.get("SELECT * FROM local_idempotency WHERE idempotency_key=?", [outbox.idempotencyKey]);
+      if (existing) {
+        if (existing.request_hash !== requestHash) throw new Error("IDEMPOTENCY_CONFLICT");
+        return {duplicate:true, order:this.getOrder(existing.order_id)};
+      }
+      this.exec("INSERT INTO local_idempotency VALUES(?,?,?,?)",[outbox.idempotencyKey,requestHash,order.orderId,order.createdAt]);
       this.exec("INSERT INTO order_header VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
         [order.orderId,order.tenantId,order.outletId,order.deviceId,order.actorId,order.shiftId,order.businessDate,
          "PAID","IDR",order.subtotalMinor,order.discountMinor,order.taxMinor,order.totalMinor,order.occurredAt,order.createdAt]);
