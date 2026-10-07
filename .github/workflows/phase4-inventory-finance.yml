@@ -1,0 +1,51 @@
+name: phase4-inventory-finance
+on:
+  push:
+    branches: [main]
+  pull_request:
+jobs:
+  phase4-inventory-finance:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: kasira_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres -d kasira_test"
+          --health-interval 5s --health-timeout 5s --health-retries 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: 22}
+      - run: npm install
+      - run: npm run check
+      - run: npm run test:offline
+      - name: Phase 3 sync regression
+        run: npm run test:sync
+      - name: Phase 3 integration regression
+        run: npm run phase3:integration
+      - name: Apply canonical migrations
+        env: {PGPASSWORD: postgres, PGHOST: 127.0.0.1, PGUSER: postgres, PGDATABASE: kasira_test}
+        run: |
+          for f in db/migrations/*.sql; do
+            echo "Applying $f"
+            psql -v ON_ERROR_STOP=1 -f "$f"
+          done
+      - name: Canonical baseline integration
+        env: {PGPASSWORD: postgres, PGHOST: 127.0.0.1, PGUSER: postgres, PGDATABASE: kasira_test}
+        run: psql -v ON_ERROR_STOP=1 -f scripts/integration.sql
+      - name: Phase 4 inventory and finance integration
+        env: {PGPASSWORD: postgres, PGHOST: 127.0.0.1, PGUSER: postgres, PGDATABASE: kasira_test}
+        run: psql -v ON_ERROR_STOP=1 -f scripts/phase4-integration.sql
+      - name: Verify Phase 4 forced RLS
+        env: {PGPASSWORD: postgres, PGHOST: 127.0.0.1, PGUSER: postgres, PGDATABASE: kasira_test}
+        run: |
+          psql -v ON_ERROR_STOP=1 -c "SELECT relname, relrowsecurity, relforcerowsecurity FROM pg_class WHERE relnamespace='kasira'::regnamespace AND relname IN ('purchase_order','goods_receipt','cost_layer','inventory_projection','stock_opname','cash_shift','cash_closing','payment_reconciliation','payment_reconciliation_item','variance_case') ORDER BY relname;"
+      - name: Verify Phase 4 ledger projection invariant
+        env: {PGPASSWORD: postgres, PGHOST: 127.0.0.1, PGUSER: postgres, PGDATABASE: kasira_test}
+        run: |
+          test "$(psql -At -v ON_ERROR_STOP=1 -c "SELECT count(*) FROM (SELECT l.tenant_id,l.warehouse_id,l.product_variant_id,COALESCE(SUM(l.quantity),0) ledger_qty,COALESCE(SUM(l.value_minor),0) ledger_value,p.quantity_on_hand,p.inventory_value_minor FROM kasira.inventory_ledger l JOIN kasira.inventory_projection p USING (tenant_id,warehouse_id,product_variant_id) GROUP BY l.tenant_id,l.warehouse_id,l.product_variant_id,p.quantity_on_hand,p.inventory_value_minor HAVING COALESCE(SUM(l.quantity),0)<>p.quantity_on_hand OR COALESCE(SUM(l.value_minor),0)<>p.inventory_value_minor) q;")" = "0"
+      - run: echo "PHASE 4 INVENTORY FINANCE GATE EXECUTED"
