@@ -380,3 +380,66 @@ BEGIN
  END IF;
  RETURN rid;
 END $$;
+
+-- Final inventory mutation definition: every negative stock event consumes the same FIFO layers
+-- unless the caller has already consumed them (the sale wrapper).
+CREATE OR REPLACE FUNCTION kasira.post_inventory_event(
+ p_tenant_id uuid, p_warehouse_id uuid, p_product_variant_id uuid, p_event_id uuid, p_event_type text,
+ p_quantity numeric, p_unit_cost_minor bigint, p_occurred_at timestamptz, p_actor_id uuid, p_device_id uuid,
+ p_correlation_id uuid, p_causation_id uuid, p_metadata jsonb DEFAULT '{}'::jsonb
+) RETURNS uuid LANGUAGE plpgsql AS $$
+DECLARE current_qty numeric; current_value numeric; new_qty numeric; value_delta numeric; fifo_cost numeric;
+DECLARE existing kasira.inventory_ledger;
+BEGIN
+ SELECT * INTO existing FROM kasira.inventory_ledger WHERE tenant_id=p_tenant_id AND event_id=p_event_id;
+ IF FOUND THEN
+   IF existing.warehouse_id<>p_warehouse_id OR existing.product_variant_id<>p_product_variant_id
+      OR existing.event_type<>p_event_type OR existing.quantity<>p_quantity
+      OR existing.unit_cost_minor IS DISTINCT FROM p_unit_cost_minor
+   THEN RAISE EXCEPTION 'INVENTORY_EVENT_ID_REUSE'; END IF;
+   RETURN p_event_id;
+ END IF;
+ IF p_quantity=0 THEN RAISE EXCEPTION 'inventory quantity cannot be zero'; END IF;
+ IF p_unit_cost_minor IS NULL OR p_unit_cost_minor<0 THEN RAISE EXCEPTION 'inventory cost is required and must be non-negative'; END IF;
+ IF p_quantity<0 AND COALESCE((p_metadata->>'fifo_consumed')::boolean,false)=false THEN
+   fifo_cost:=kasira.consume_inventory_fifo(p_tenant_id,p_warehouse_id,p_product_variant_id,abs(p_quantity));
+   IF fifo_cost<>(abs(p_quantity)*p_unit_cost_minor) THEN RAISE EXCEPTION 'FIFO_COST_MISMATCH'; END IF;
+ END IF;
+ INSERT INTO kasira.inventory_projection(tenant_id,warehouse_id,product_variant_id)
+ VALUES(p_tenant_id,p_warehouse_id,p_product_variant_id) ON CONFLICT DO NOTHING;
+ SELECT quantity_on_hand,inventory_value_minor INTO current_qty,current_value
+ FROM kasira.inventory_projection
+ WHERE tenant_id=p_tenant_id AND warehouse_id=p_warehouse_id AND product_variant_id=p_product_variant_id FOR UPDATE;
+ new_qty:=current_qty+p_quantity;
+ IF new_qty<0 THEN RAISE EXCEPTION 'INSUFFICIENT_STOCK'; END IF;
+ value_delta:=p_quantity*p_unit_cost_minor;
+ IF current_value+value_delta<0 THEN RAISE EXCEPTION 'INVENTORY_VALUE_UNDERFLOW'; END IF;
+ INSERT INTO kasira.inventory_ledger(tenant_id,warehouse_id,product_variant_id,event_id,event_type,quantity,unit_cost_minor,occurred_at,actor_id,device_id,correlation_id,causation_id,metadata)
+ VALUES(p_tenant_id,p_warehouse_id,p_product_variant_id,p_event_id,p_event_type,p_quantity,p_unit_cost_minor,p_occurred_at,p_actor_id,p_device_id,p_correlation_id,p_causation_id,p_metadata);
+ UPDATE kasira.inventory_projection SET quantity_on_hand=new_qty,inventory_value_minor=current_value+value_delta,updated_at=now()
+ WHERE tenant_id=p_tenant_id AND warehouse_id=p_warehouse_id AND product_variant_id=p_product_variant_id;
+ IF p_quantity>0 THEN
+   INSERT INTO kasira.cost_layer(tenant_id,warehouse_id,product_variant_id,source_event_id,received_at,unit_cost_minor,original_quantity,remaining_quantity)
+   VALUES(p_tenant_id,p_warehouse_id,p_product_variant_id,p_event_id,p_occurred_at,p_unit_cost_minor,p_quantity,p_quantity);
+ END IF;
+ RETURN p_event_id;
+END $$;
+
+CREATE OR REPLACE FUNCTION kasira.post_inventory_sale(
+ p_tenant_id uuid, p_warehouse_id uuid, p_product_variant_id uuid, p_event_id uuid, p_quantity numeric,
+ p_occurred_at timestamptz, p_actor_id uuid, p_device_id uuid, p_correlation_id uuid, p_causation_id uuid,
+ p_metadata jsonb DEFAULT '{}'::jsonb
+) RETURNS numeric LANGUAGE plpgsql AS $$
+DECLARE total_cost numeric; existing kasira.inventory_ledger;
+BEGIN
+ SELECT * INTO existing FROM kasira.inventory_ledger WHERE tenant_id=p_tenant_id AND event_id=p_event_id;
+ IF FOUND THEN
+   IF existing.event_type<>'SALE' OR existing.quantity<>-p_quantity THEN RAISE EXCEPTION 'INVENTORY_EVENT_ID_REUSE'; END IF;
+   RETURN COALESCE((existing.metadata->>'cogs_total_minor')::numeric,abs(existing.quantity*existing.unit_cost_minor));
+ END IF;
+ total_cost:=kasira.consume_inventory_fifo(p_tenant_id,p_warehouse_id,p_product_variant_id,p_quantity);
+ PERFORM kasira.post_inventory_event(p_tenant_id,p_warehouse_id,p_product_variant_id,p_event_id,'SALE',-p_quantity,
+   total_cost/p_quantity,p_occurred_at,p_actor_id,p_device_id,p_correlation_id,p_causation_id,
+   p_metadata||jsonb_build_object('cogs_total_minor',total_cost,'fifo_consumed',true));
+ RETURN total_cost;
+END $$;
