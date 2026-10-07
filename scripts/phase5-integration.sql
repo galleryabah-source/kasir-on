@@ -6,7 +6,7 @@ BEGIN
  SELECT id INTO brand_id FROM kasira.brand WHERE tenant_id='00000000-0000-0000-0000-000000000001' ORDER BY id LIMIT 1;
  FOR i IN 1..5 LOOP
    INSERT INTO kasira.outlet(tenant_id,brand_id,code,name) VALUES('00000000-0000-0000-0000-000000000001',brand_id,'PILOT-'||i,'CI Pilot Outlet '||i) ON CONFLICT (tenant_id,code) DO NOTHING;
- END LOOP
+ END LOOP;
  INSERT INTO kasira.pilot_run(id,tenant_id,name,outlet_target,started_at,status)
  VALUES(run_id,'00000000-0000-0000-0000-000000000001','CI Pilot Readiness',5,now_ts,'RUNNING');
  FOR outlet_id IN SELECT id FROM kasira.outlet WHERE tenant_id='00000000-0000-0000-0000-000000000001' AND code LIKE 'PILOT-%' ORDER BY code LIMIT 5 LOOP
