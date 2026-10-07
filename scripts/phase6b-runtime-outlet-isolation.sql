@@ -8,7 +8,8 @@ SELECT set_config('app.tenant_id',(SELECT id::text FROM kasira.tenant WHERE code
 
 DO $phase6b_test$
 DECLARE
-  t uuid; other_t uuid; b uuid; o1 uuid; o2 uuid; u uuid; u_all uuid; r uuid; p_read uuid; p_all uuid; d uuid; other_o uuid;
+  t uuid; other_t uuid; b uuid; o1 uuid; o2 uuid; u uuid; u_all uuid;
+  r uuid; r_all uuid; p_read uuid; p_all uuid; d uuid; other_o uuid;
 BEGIN
   SELECT id INTO t FROM kasira.tenant WHERE code='PHASE6B-TENANT';
   SELECT id INTO other_t FROM kasira.tenant WHERE code='PHASE6B-OTHER';
@@ -30,17 +31,33 @@ BEGIN
     ON CONFLICT(tenant_id,email) DO UPDATE SET display_name=EXCLUDED.display_name RETURNING id INTO u;
   INSERT INTO kasira.app_user(tenant_id,email,display_name) VALUES(t,'phase6b-all@example.invalid','Phase6B All')
     ON CONFLICT(tenant_id,email) DO UPDATE SET display_name=EXCLUDED.display_name RETURNING id INTO u_all;
+
   INSERT INTO kasira.role(tenant_id,code,name) VALUES(t,'P6B-OUTLET','Phase6B Outlet')
     ON CONFLICT(tenant_id,code) DO UPDATE SET name=EXCLUDED.name RETURNING id INTO r;
+  INSERT INTO kasira.role(tenant_id,code,name) VALUES(t,'P6B-ALL','Phase6B All Scope')
+    ON CONFLICT(tenant_id,code) DO UPDATE SET name=EXCLUDED.name RETURNING id INTO r_all;
+
   SELECT id INTO p_read FROM kasira.permission WHERE code='outlet.read';
   SELECT id INTO p_all FROM kasira.permission WHERE code='outlet.scope_all';
-  INSERT INTO kasira.role_permission(tenant_id,role_id,permission_id) VALUES(t,r,p_read),(t,r,p_all) ON CONFLICT DO NOTHING;
-  INSERT INTO kasira.user_role(tenant_id,user_id,role_id) VALUES(t,u,r) ON CONFLICT DO NOTHING;
-  INSERT INTO kasira.user_outlet_scope(tenant_id,user_id,outlet_id) VALUES(t,u,o1) ON CONFLICT DO NOTHING;
+
+  INSERT INTO kasira.role_permission(tenant_id,role_id,permission_id)
+  VALUES(t,r,p_read),(t,r_all,p_read),(t,r_all,p_all)
+  ON CONFLICT DO NOTHING;
+  INSERT INTO kasira.user_role(tenant_id,user_id,role_id)
+  VALUES(t,u,r),(t,u_all,r_all)
+  ON CONFLICT DO NOTHING;
+  INSERT INTO kasira.user_outlet_scope(tenant_id,user_id,outlet_id)
+  VALUES(t,u,o1)
+  ON CONFLICT DO NOTHING;
 
   IF NOT kasira.has_outlet_access(t,u,o1) THEN RAISE EXCEPTION 'ASSIGNED_OUTLET_NOT_ALLOWED'; END IF;
   IF kasira.has_outlet_access(t,u,o2) THEN RAISE EXCEPTION 'UNASSIGNED_OUTLET_ALLOWED'; END IF;
-  BEGIN PERFORM kasira.assert_outlet_access(t,u,o2); RAISE EXCEPTION 'DENIAL_NOT_ENFORCED'; EXCEPTION WHEN others THEN IF SQLERRM <> 'OUTLET_SCOPE_DENIED' THEN RAISE; END IF; END;
+  BEGIN
+    PERFORM kasira.assert_outlet_access(t,u,o2);
+    RAISE EXCEPTION 'DENIAL_NOT_ENFORCED';
+  EXCEPTION WHEN others THEN
+    IF SQLERRM <> 'OUTLET_SCOPE_DENIED' THEN RAISE; END IF;
+  END;
 
   IF NOT kasira.has_outlet_access(t,u_all,o2) THEN RAISE EXCEPTION 'SCOPE_ALL_NOT_ALLOWED'; END IF;
   IF kasira.has_outlet_access(other_t,u,o1) THEN RAISE EXCEPTION 'CROSS_TENANT_BYPASS'; END IF;
