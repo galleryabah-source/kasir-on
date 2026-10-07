@@ -118,6 +118,21 @@ WHERE r.tenant_id=:'tenant'::uuid AND r.settlement_reference='SETTLE-1' AND p.te
 
 SELECT kasira.create_payment_reconciliation(:'tenant'::uuid,:'outlet'::uuid,'PROVIDER-X','SETTLE-2',CURRENT_DATE,CURRENT_DATE,9500);
 
+-- Final ledger/projection/cost-layer invariant after stock opname.
+DO $
+DECLARE ledger_qty numeric; ledger_value numeric; projection_qty numeric; projection_value numeric; layer_qty numeric;
+BEGIN
+ SELECT COALESCE(SUM(quantity),0),COALESCE(SUM(quantity*unit_cost_minor),0)
+ INTO ledger_qty,ledger_value FROM kasira.inventory_ledger
+ WHERE tenant_id=:'tenant'::uuid AND warehouse_id=:'warehouse'::uuid AND product_variant_id=:'variant'::uuid;
+ SELECT quantity_on_hand,inventory_value_minor INTO projection_qty,projection_value
+ FROM kasira.inventory_projection WHERE tenant_id=:'tenant'::uuid AND warehouse_id=:'warehouse'::uuid AND product_variant_id=:'variant'::uuid;
+ SELECT COALESCE(SUM(remaining_quantity),0) INTO layer_qty FROM kasira.cost_layer
+ WHERE tenant_id=:'tenant'::uuid AND warehouse_id=:'warehouse'::uuid AND product_variant_id=:'variant'::uuid;
+ IF ledger_qty<>projection_qty OR ledger_value<>projection_value OR layer_qty<>projection_qty
+ THEN RAISE EXCEPTION 'FINAL_LEDGER_PROJECTION_LAYER_MISMATCH qty %, % layer % value %, %',ledger_qty,projection_qty,layer_qty,ledger_value,projection_value; END IF;
+END $;
+
 -- Final canonical evidence.
 SELECT
  (SELECT quantity_on_hand FROM kasira.inventory_projection WHERE tenant_id=:'tenant'::uuid AND warehouse_id=:'warehouse'::uuid AND product_variant_id=:'variant'::uuid)=2.5 AS inventory_projection_ok,
