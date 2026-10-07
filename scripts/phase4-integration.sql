@@ -4,9 +4,9 @@ SET LOCAL app.tenant_id='00000000-0000-0000-0000-000000000001';
 
 -- Canonical master IDs from scripts/integration.sql
 \set tenant 00000000-0000-0000-0000-000000000001
-\set outlet 00000000-0000-0000-0000-000000000001
-\set warehouse 00000000-0000-0000-0000-000000000001
-\set variant 00000000-0000-0000-0000-000000000001
+SELECT id AS outlet FROM kasira.outlet WHERE tenant_id=:'tenant'::uuid AND code='O1' \gset
+SELECT id AS warehouse FROM kasira.warehouse WHERE tenant_id=:'tenant'::uuid AND code='W1' \gset
+SELECT id AS variant FROM kasira.product_variant WHERE tenant_id=:'tenant'::uuid AND sku='VAR-1' \gset
 
 -- Purchase order is the commercial source for the first receipt.
 INSERT INTO kasira.purchase_order(id,tenant_id,outlet_id,supplier_name,supplier_reference,total_minor,occurred_at)
