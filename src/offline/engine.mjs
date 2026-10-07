@@ -39,7 +39,7 @@ export class OfflinePOSEngine {
       items:normalized,payment:{paymentId:randomUUID(),amountMinor:paymentMinor,occurredAt},
       receipt:{receiptId:randomUUID(),receiptNumber:receiptNumber??`R-${businessDate.replaceAll("-","")}-${orderId.slice(0,8).toUpperCase()}`,payload,createdAt:occurredAt},
       requestHash,
-      outbox:{eventId:randomUUID(),tenantId:d.tenant_id,aggregateId:orderId,eventType:"SALE_COMMIT",eventVersion:1,occurredAt,
+      outbox:{localSequence:this.store.nextLocalSequence(d.tenant_id,d.device_id),eventId:randomUUID(),tenantId:d.tenant_id,aggregateId:orderId,eventType:"SALE_COMMIT",eventVersion:1,occurredAt,
         idempotencyKey:idemKey,correlationId,causationId:null,payload,createdAt:occurredAt}
     });
   }
