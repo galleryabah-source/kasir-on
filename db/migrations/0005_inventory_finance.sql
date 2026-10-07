@@ -234,6 +234,7 @@ BEGIN
 END $$;
 
 -- Phase 4 hardening: sync-safe idempotency and canonical cash/payment calculations.
+ALTER TABLE kasira.cash_ledger ADD COLUMN IF NOT EXISTS cash_shift_id uuid;
 DO $$
 BEGIN
  IF NOT EXISTS (
