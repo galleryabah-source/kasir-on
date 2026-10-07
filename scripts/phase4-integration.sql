@@ -77,8 +77,6 @@ WHERE tenant_id=:'tenant'::uuid AND stock_opname_id=(SELECT id FROM kasira.stock
 INSERT INTO kasira.cash_shift(id,tenant_id,outlet_id,business_date,opening_cash_minor,opened_at)
 VALUES('00000000-0000-0000-0000-000000000501',:'tenant'::uuid,:'outlet'::uuid,CURRENT_DATE,100000,now());
 INSERT INTO kasira.cash_ledger(tenant_id,outlet_id,cash_shift_id,event_id,event_type,amount_minor,business_date,occurred_at,correlation_id)
-VALUES(:'tenant'::uuid,:'outlet'::uuid,'00000000-0000-0000-0000-000000000501','00000000-0000-0000-0000-000000000502','OPENING',100000,CURRENT_DATE,now(),'00000000-0000-0000-0000-000000000503');
-INSERT INTO kasira.cash_ledger(tenant_id,outlet_id,cash_shift_id,event_id,event_type,amount_minor,business_date,occurred_at,correlation_id)
 VALUES(:'tenant'::uuid,:'outlet'::uuid,'00000000-0000-0000-0000-000000000501','00000000-0000-0000-0000-000000000504','SALE',10000,CURRENT_DATE,now(),'00000000-0000-0000-0000-000000000505');
 SELECT kasira.close_cash_shift_from_ledger(:'tenant'::uuid,'00000000-0000-0000-0000-000000000501',CURRENT_DATE,110000,NULL,now());
 
