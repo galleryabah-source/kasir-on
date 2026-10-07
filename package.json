@@ -13,7 +13,9 @@
     "phase3:integration": "node --experimental-sqlite scripts/phase3-integration.mjs",
     "phase4:integration": "psql -v ON_ERROR_STOP=1 -f scripts/phase4-integration.sql",
     "phase5:pilot": "node scripts/phase5-pilot.mjs",
-    "phase5:integration": "psql -v ON_ERROR_STOP=1 -f scripts/phase5-integration.sql"
+    "phase5:integration": "psql -v ON_ERROR_STOP=1 -f scripts/phase5-integration.sql",
+    "security:integration": "psql -v ON_ERROR_STOP=1 -f scripts/security-platform-integration.sql",
+    "test:platform": "npm run check:schema && npm run test:domain && npm run test:offline && npm run test:sync && npm run phase5:pilot"
   },
   "engines": {
     "node": ">=22"
