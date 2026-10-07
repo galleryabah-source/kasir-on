@@ -215,7 +215,9 @@ BEGIN
       AND product_variant_id=l.product_variant_id;
 
     UPDATE kasira.inventory_projection
-    SET updated_at=now()
+    SET quantity_on_hand=quantity_on_hand+l.quantity,
+        inventory_value_minor=inventory_value_minor+destination_value,
+        updated_at=now()
     WHERE tenant_id=p_tenant_id
       AND warehouse_id=t.destination_warehouse_id
       AND product_variant_id=l.product_variant_id;
