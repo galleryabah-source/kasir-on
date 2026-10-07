@@ -6,5 +6,8 @@ const required=["tenant_id","idempotency_key","correlation_id","audit_log","sale
 const sql=files.map(f=>fs.readFileSync(path.join(root,f),"utf8")).join("\n").toLowerCase();
 for(const token of required)if(!sql.includes(token))throw new Error("Missing schema contract: "+token);
 if(!sql.includes("enable row level security"))throw new Error("RLS is required");
-if(!sql.includes("unique (tenant_id, idempotency_key)"))throw new Error("Idempotency uniqueness contract is missing");
+if(!/unique\s*\(\s*tenant_id\s*,\s*idempotency_key\s*\)/.test(sql))throw new Error("Idempotency uniqueness contract is missing");
+if(!sql.includes("force row level security"))throw new Error("Forced RLS contract is missing");
+if(!sql.includes("prevent_ledger_mutation"))throw new Error("Ledger immutability trigger is missing");
 console.log("SCHEMA STATIC CONTRACT: PASS");
+console.log("Migrations:",files.join(", "));
