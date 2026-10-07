@@ -8,7 +8,9 @@
     "check:schema": "node scripts/check-schema.mjs",
     "check": "npm run check:schema && npm run test:domain",
     "test:offline": "node --experimental-sqlite --test tests/offline-pos.test.mjs",
-    "offline:integration": "node --experimental-sqlite scripts/offline-integration.mjs"
+    "offline:integration": "node --experimental-sqlite scripts/offline-integration.mjs",
+    "test:sync": "node --experimental-sqlite --test tests/sync-reconciliation.test.mjs",
+    "phase3:integration": "node --experimental-sqlite scripts/phase3-integration.mjs"
   },
   "engines": {
     "node": ">=22"
