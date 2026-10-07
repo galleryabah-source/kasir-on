@@ -361,8 +361,8 @@ BEGIN
  WHERE tenant_id=p_tenant_id AND provider=p_provider AND occurred_at>=p_period_start::timestamptz
    AND occurred_at<(p_period_end+1)::timestamptz AND status IN ('CAPTURED','REFUNDED');
  rid:=gen_random_uuid();
- INSERT INTO kasira.payment_reconciliation(tenant_id,outlet_id,provider,settlement_reference,period_start,period_end,internal_total_minor,external_total_minor,status)
- VALUES(p_tenant_id,p_outlet_id,p_provider,p_settlement_reference,p_period_start,p_period_end,internal_total,p_external_total_minor,
+ INSERT INTO kasira.payment_reconciliation(id,tenant_id,outlet_id,provider,settlement_reference,period_start,period_end,internal_total_minor,external_total_minor,status)
+ VALUES(rid,p_tenant_id,p_outlet_id,p_provider,p_settlement_reference,p_period_start,p_period_end,internal_total,p_external_total_minor,
    CASE WHEN internal_total=p_external_total_minor THEN 'MATCHED' ELSE 'VARIANCE' END);
  IF internal_total<>p_external_total_minor THEN
    INSERT INTO kasira.variance_case(tenant_id,case_type,source_id,reason,variance_minor)
